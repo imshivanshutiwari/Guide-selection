@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Admin Panel</div>
+            <a href="{{ url_for('admin_dashboard') }}" class="nav-item active">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('admin_analytics') }}" class="nav-item">
+                <span class="nav-icon">📈</span> Analytics
+            </a>
+            <a href="{{ url_for('admin_export') }}" class="nav-item">
+                <span class="nav-icon">📥</span> Export Excel
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">{{ current_user.name[0] }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">Admin</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+        <div class="page-header flex justify-between items-center">
+            <div>
+                <h1 class="page-title">Admin Dashboard</h1>
+                <p class="page-subtitle">Full allocation control and system overview</p>
+            </div>
+            <div class="flex gap-12">
+                <form method="POST" action="{{ url_for('admin_run_matching') }}">
+                    <button type="submit" class="btn btn-primary btn-lg" onclick="return confirm('Run matching algorithm? This will reset all existing allocations.')">
+                        🧠 Run Matching Algorithm
+                    </button>
+                </form>
+                <a href="{{ url_for('admin_export') }}" class="btn btn-ghost btn-lg">📥 Export Excel</a>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card purple">
+                <div class="stat-icon purple">👨‍🎓</div>
+                <div>
+                    <div class="stat-value">{{ stats.total_students }}</div>
+                    <div class="stat-label">Total Students</div>
+                </div>
+            </div>
+            <div class="stat-card cyan">
+                <div class="stat-icon cyan">👨‍🏫</div>
+                <div>
+                    <div class="stat-value">{{ stats.total_guides }}</div>
+                    <div class="stat-label">Total Guides</div>
+                </div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-icon green">✓</div>
+                <div>
+                    <div class="stat-value">{{ stats.total_allocated }}</div>
+                    <div class="stat-label">Allocated</div>
+                </div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-icon pink">⚠</div>
+                <div>
+                    <div class="stat-value">{{ stats.total_unmatched }}</div>
+                    <div class="stat-label">Unmatched</div>
+                </div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-icon orange">📝</div>
+                <div>
+                    <div class="stat-value">{{ stats.pref_submitted }}</div>
+                    <div class="stat-label">Preferences Submitted</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completion Progress -->
+        <div class="card mb-24">
+            <div class="card-header">
+                <h2 class="card-title">Allocation Progress</h2>
+                <span class="badge badge-{% if stats.completion_pct >= 80 %}success{% elif stats.completion_pct >= 50 %}warning{% else %}danger{% endif %}">
+                    {{ stats.completion_pct }}% Complete
+                </span>
+            </div>
+            <div class="progress-bar" style="height:14px">
+                <div class="progress-fill {% if stats.completion_pct >= 80 %}green{% elif stats.completion_pct >= 50 %}orange{% else %}pink{% endif %}"
+                     style="width:{{ stats.completion_pct }}%"></div>
+            </div>
+            <div class="flex justify-between mt-8 text-xs text-muted">
+                <span>{{ stats.total_allocated }} allocated</span>
+                <span>{{ stats.total_capacity }} total capacity</span>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Guide Load Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Guide Load Distribution</h2>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="guideLoadChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Preference Distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🎯 Preference Match Distribution</h2>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="prefDistChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Allocation Table -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <h2 class="card-title">📋 Allocation Table</h2>
+                <span class="text-sm text-muted">{{ allocations|length }} allocations</span>
+            </div>
+            {% if allocations %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Student</th>
+                            <th>CGPA</th>
+                            <th>Guide</th>
+                            <th>Preference</th>
+                            <th>Method</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alloc in allocations %}
+                        {% set stud = alloc.student %}
+                        {% set gd = alloc.guide %}
+                        <tr>
+                            <td class="text-muted">{{ loop.index }}</td>
+                            <td>
+                                <div class="flex items-center gap-8">
+                                    <div class="user-avatar" style="background:{{ stud.user.avatar_color }}; width:28px; height:28px; font-size:11px">{{ stud.user.name[0] }}</div>
+                                    <strong>{{ stud.user.name }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ stud.cgpa }}</td>
+                            <td>
+                                <div class="flex items-center gap-8">
+                                    <div class="user-avatar" style="background:{{ gd.user.avatar_color }}; width:28px; height:28px; font-size:11px">{{ gd.user.name[0] }}</div>
+                                    {{ gd.user.name }}
+                                </div>
+                            </td>
+                            <td>
+                                {% if alloc.preference_rank > 0 %}
+                                <span class="badge badge-{% if alloc.preference_rank == 1 %}success{% elif alloc.preference_rank == 2 %}info{% else %}warning{% endif %}">
+                                    Choice #{{ alloc.preference_rank }}
+                                </span>
+                                {% else %}
+                                <span class="badge badge-primary">Fallback</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="tag">{{ alloc.method }}</span></td>
+                            <td>
+                                <span class="badge badge-{% if alloc.status == 'confirmed' %}success{% elif alloc.status == 'rejected' %}danger{% elif alloc.status == 'waitlisted' %}warning{% else %}info{% endif %}">
+                                    {{ alloc.status | capitalize }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <p class="empty-title">No Allocations Yet</p>
+                <p class="empty-text">Click "Run Matching Algorithm" to allocate students to guides based on their preferences.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Manual Override -->
+        {% if unmatched %}
+        <div class="card mt-24" style="border-color: rgba(255, 101, 132, 0.3)">
+            <div class="card-header">
+                <h2 class="card-title" style="color: var(--accent-secondary)">⚠ Unmatched Students</h2>
+                <span class="badge badge-danger">{{ unmatched|length }} students</span>
+            </div>
+            <p class="text-sm text-muted mb-16">These students need manual assignment. Use the form below to assign them to available guides.</p>
+            {% for student in unmatched %}
+            <div class="applicant-card mb-16">
+                <div class="user-avatar" style="background:{{ student.user.avatar_color }}; width:40px; height:40px; font-size:14px">
+                    {{ student.user.name[0] }}
+                </div>
+                <div class="applicant-info">
+                    <div class="applicant-name">{{ student.user.name }}</div>
+                    <div class="applicant-meta">
+                        <span>CGPA: {{ student.cgpa }}</span>
+                        <span>Interests: {{ ', '.join(student.area_of_interest[:2]) }}</span>
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('admin_override') }}" class="flex gap-8 items-center">
+                    <input type="hidden" name="student_id" value="{{ student.id }}">
+                    <select name="guide_id" class="form-select" style="width:200px" required>
+                        <option value="">Assign to…</option>
+                        {% for g in guides %}
+                        {% if not g.is_full %}
+                        <option value="{{ g.id }}">{{ g.user.name }} ({{ g.available_slots }} slots)</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Audit Log -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <h2 class="card-title">📜 Recent Activity</h2>
+            </div>
+            {% if audit_logs %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr><th>Action</th><th>Target</th><th>Details</th><th>Time</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for log in audit_logs[:10] %}
+                        <tr>
+                            <td><span class="tag">{{ log.action }}</span></td>
+                            <td class="text-sm">{{ log.target }}</td>
+                            <td class="text-sm text-muted">{{ log.details }}</td>
+                            <td class="text-xs text-muted">{{ log.timestamp.strftime('%b %d, %H:%M') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-sm text-muted">No activity yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<script>
+// Guide Load Chart
+const guideData = {{ guide_load_data | tojson }};
+if (guideData.length > 0) {
+    new Chart(document.getElementById('guideLoadChart'), {
+        type: 'bar',
+        data: {
+            labels: guideData.map(g => g.name),
+            datasets: [
+                {
+                    label: 'Current Load',
+                    data: guideData.map(g => g.load),
+                    backgroundColor: 'rgba(108, 99, 255, 0.7)',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                },
+                {
+                    label: 'Capacity',
+                    data: guideData.map(g => g.capacity),
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#9090b0', font: { family: 'Inter' } } }
+            },
+            scales: {
+                x: { ticks: { color: '#9090b0', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+                y: { ticks: { color: '#9090b0', font: { family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Preference Distribution Chart
+const prefData = {{ pref_dist | tojson }};
+new Chart(document.getElementById('prefDistChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['1st Choice', '2nd Choice', '3rd Choice', 'Fallback'],
+        datasets: [{
+            data: [prefData.choice_1, prefData.choice_2, prefData.choice_3, prefData.fallback],
+            backgroundColor: ['#43E97B', '#00C9FF', '#F7971E', '#FF6584'],
+            borderWidth: 0,
+            hoverOffset: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { color: '#9090b0', font: { family: 'Inter', size: 12 }, padding: 16 }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Navigation</div>
+            <a href="{{ url_for('student_dashboard') }}" class="nav-item active">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('student_preferences') }}" class="nav-item">
+                <span class="nav-icon">📝</span> My Preferences
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">
+                    {{ current_user.name[0] }}
+                </div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">{{ current_user.role }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Student Dashboard</h1>
+            <p class="page-subtitle">Welcome back, {{ current_user.name }}! Here's your allocation status.</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card purple">
+                <div class="stat-icon purple">📚</div>
+                <div>
+                    <div class="stat-value">{{ student.cgpa }}</div>
+                    <div class="stat-label">CGPA</div>
+                </div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-icon green">📝</div>
+                <div>
+                    <div class="stat-value">{% if student.preference %}✓{% else %}✗{% endif %}</div>
+                    <div class="stat-label">Preferences {{ 'Submitted' if student.preference else 'Pending' }}</div>
+                </div>
+            </div>
+            <div class="stat-card {% if allocation %}cyan{% else %}orange{% endif %}">
+                <div class="stat-icon {% if allocation %}cyan{% else %}orange{% endif %}">🎯</div>
+                <div>
+                    <div class="stat-value">{% if allocation %}Matched{% else %}Pending{% endif %}</div>
+                    <div class="stat-label">Allocation Status</div>
+                </div>
+            </div>
+            <div class="stat-card pink">
+                <div class="stat-icon pink">⭐</div>
+                <div>
+                    <div class="stat-value">{{ student.priority_score }}</div>
+                    <div class="stat-label">Priority Score {% if student.sop_url %}(SOP ✓){% endif %}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Status Timeline -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Allocation Timeline</h2>
+                        <p class="card-subtitle">Track your progress</p>
+                    </div>
+                </div>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-dot completed"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Account Created</div>
+                            <div class="timeline-date">{{ current_user.created_at.strftime('%b %d, %Y') }}</div>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot {% if student.preference %}completed{% else %}active{% endif %}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Preferences Submitted</div>
+                            <div class="timeline-date">
+                                {% if student.preference %}
+                                    {{ student.preference.submitted_at.strftime('%b %d, %Y %H:%M') }}
+                                {% else %}
+                                    <a href="{{ url_for('student_preferences') }}" class="btn btn-primary btn-sm">Submit Now</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot {% if allocation %}completed{% elif student.preference %}active{% else %}pending{% endif %}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Under Review</div>
+                            <div class="timeline-date">{% if allocation %}Completed{% elif student.preference %}In progress{% else %}Waiting for preferences{% endif %}</div>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot {% if allocation %}completed{% else %}pending{% endif %}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Guide Allocated</div>
+                            <div class="timeline-date">
+                                {% if allocation %}
+                                    {{ allocation.allocated_at.strftime('%b %d, %Y %H:%M') }}
+                                {% else %}
+                                    Pending
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot {% if allocation and allocation.status == 'confirmed' %}completed{% else %}pending{% endif %}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Confirmed</div>
+                            <div class="timeline-date">
+                                {% if allocation and allocation.status == 'confirmed' %}Confirmed ✓{% else %}Awaiting confirmation{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="flex flex-col gap-24">
+                <!-- Allocation Result -->
+                {% if allocation and assigned_guide %}
+                <div class="card" style="border-color: rgba(67, 233, 123, 0.3)">
+                    <div class="card-header">
+                        <h2 class="card-title" style="color: var(--accent-green)">🎉 Allocated Guide</h2>
+                        <span class="badge badge-{% if allocation.status == 'confirmed' %}success{% elif allocation.status == 'waitlisted' %}warning{% elif allocation.status == 'rejected' %}danger{% else %}info{% endif %}">
+                            {{ allocation.status | capitalize }}
+                        </span>
+                    </div>
+                    <div class="guide-card-header">
+                        <div class="guide-avatar" style="background:{{ assigned_guide.user.avatar_color }}">
+                            {{ assigned_guide.user.name[0] }}
+                        </div>
+                        <div>
+                            <div class="guide-name">{{ assigned_guide.user.name }}</div>
+                            <div class="guide-designation">{{ assigned_guide.designation }}</div>
+                        </div>
+                    </div>
+                    <div class="guide-areas">
+                        {% for area in assigned_guide.research_areas %}
+                        <span class="tag">{{ area }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="flex items-center gap-8 text-sm text-muted mb-16">
+                        <span>Method: <strong>{{ allocation.method }}</strong></span>
+                        {% if allocation.preference_rank > 0 %}
+                        <span>•</span>
+                        <span>Choice #{{ allocation.preference_rank }}</span>
+                        {% endif %}
+                    </div>
+                    {% if assigned_guide.publications %}
+                    <div class="guide-publications">
+                        <strong class="text-sm">Recent Publications:</strong>
+                        <ul class="text-xs text-muted mt-4" style="list-style-type: disc; padding-left: 1rem;">
+                        {% for pub in assigned_guide.publications %}
+                            <li>{{ pub }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Notifications -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">🔔 Notifications</h2>
+                        {% if notifications %}
+                        <span class="badge badge-primary">{{ unread_count }} new</span>
+                        {% endif %}
+                    </div>
+                    {% if notifications %}
+                    <div class="notification-list">
+                        {% for notif in notifications[:5] %}
+                        <div class="notification-item {% if not notif.read %}unread{% endif %}">
+                            <div class="notif-icon {{ notif.type }}">
+                                {% if notif.type == 'success' %}✓{% elif notif.type == 'error' %}✗{% elif notif.type == 'warning' %}⚠{% else %}ℹ{% endif %}
+                            </div>
+                            <div class="notif-content">
+                                <div class="notif-title">{{ notif.title }}</div>
+                                <div class="notif-message">{{ notif.message }}</div>
+                            </div>
+                            <span class="notif-time">{{ notif.time_ago() }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state" style="padding:30px">
+                        <div class="empty-icon">🔕</div>
+                        <p class="text-sm text-muted">No notifications yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Guides -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">Available Guides</h2>
+                    <p class="card-subtitle">Browse faculty members and their research areas</p>
+                </div>
+                <a href="{{ url_for('student_preferences') }}" class="btn btn-primary btn-sm">Submit Preferences</a>
+            </div>
+            <div class="guide-grid">
+                {% for guide in guides %}
+                <div class="guide-card">
+                    <div class="guide-card-header">
+                        <div class="guide-avatar" style="background:{{ guide.user.avatar_color }}">
+                            {{ guide.user.name[0] }}
+                        </div>
+                        <div>
+                            <div class="guide-name">{{ guide.user.name }}</div>
+                            <div class="guide-designation">{{ guide.designation }}</div>
+                        </div>
+                    </div>
+                    <div class="guide-areas">
+                        {% for area in guide.research_areas %}
+                        <span class="tag">{{ area }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="capacity-bar">
+                        <div class="capacity-label">
+                            <span>Capacity</span>
+                            <span>{{ guide.current_load }}/{{ guide.capacity }}</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if guide.is_full %}pink{% elif guide.current_load >= guide.capacity * 0.7 %}orange{% else %}green{% endif %}"
+                                 style="width: {{ (guide.current_load / guide.capacity * 100) if guide.capacity > 0 else 0 }}%"></div>
+                        </div>
+                    </div>
+                    {% if guide.is_full %}
+                    <div class="mt-8">
+                        <span class="badge badge-danger">Full</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

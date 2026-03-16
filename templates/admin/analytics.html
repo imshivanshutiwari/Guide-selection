@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Analytics — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Admin Panel</div>
+            <a href="{{ url_for('admin_dashboard') }}" class="nav-item">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('admin_analytics') }}" class="nav-item active">
+                <span class="nav-icon">📈</span> Analytics
+            </a>
+            <a href="{{ url_for('admin_export') }}" class="nav-item">
+                <span class="nav-icon">📥</span> Export Excel
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">{{ current_user.name[0] }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">Admin</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Analytics & Reports</h1>
+            <p class="page-subtitle">Insights into the allocation process</p>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="stats-grid">
+            <div class="stat-card purple">
+                <div class="stat-icon purple">📊</div>
+                <div>
+                    <div class="stat-value">{{ allocations|length }}</div>
+                    <div class="stat-label">Total Allocations</div>
+                </div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-icon green">🎯</div>
+                <div>
+                    {% set first_choice = allocations|selectattr('preference_rank', 'equalto', 1)|list|length %}
+                    <div class="stat-value">{{ ((first_choice / allocations|length * 100) if allocations|length > 0 else 0)|round(0)|int }}%</div>
+                    <div class="stat-label">Got 1st Choice</div>
+                </div>
+            </div>
+            <div class="stat-card cyan">
+                <div class="stat-icon cyan">📚</div>
+                <div>
+                    {% set avg_cgpa = (students|map(attribute='cgpa')|list|sum / students|length) if students|length > 0 else 0 %}
+                    <div class="stat-value">{{ avg_cgpa|round(1) }}</div>
+                    <div class="stat-label">Avg Student CGPA</div>
+                </div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-icon orange">👨‍🏫</div>
+                <div>
+                    <div class="stat-value">{{ guides|length }}</div>
+                    <div class="stat-label">Active Guides</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-grid">
+            <!-- Guide Demand Heatmap -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔥 Most Preferred Guides</h2>
+                    <p class="card-subtitle">Times listed as any preference</p>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="demandChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Method Distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⚙️ Allocation Methods</h2>
+                    <p class="card-subtitle">How students were matched</p>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="methodChart"></canvas>
+                </div>
+            </div>
+
+            <!-- CGPA Distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📚 CGPA Distribution</h2>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="cgpaChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Guide Utilization -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Guide Utilization</h2>
+                </div>
+                <div class="chart-container" style="max-height:350px">
+                    <canvas id="utilizationChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Guide Table -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <h2 class="card-title">📋 Guide-wise Breakdown</h2>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr><th>Guide</th><th>Department</th><th>Research Areas</th><th>Capacity</th><th>Load</th><th>Demand</th><th>Utilization</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for g in guides %}
+                        <tr>
+                            <td><strong>{{ g.user.name }}</strong></td>
+                            <td class="text-muted">{{ g.user.department }}</td>
+                            <td>
+                                <div class="flex gap-8" style="flex-wrap:wrap">
+                                    {% for a in g.research_areas[:2] %}
+                                    <span class="tag">{{ a }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>{{ g.capacity }}</td>
+                            <td>{{ g.current_load }}</td>
+                            <td><span class="badge badge-primary">{{ guide_demand.get(g.user.name, 0) }}</span></td>
+                            <td>
+                                <div class="progress-bar" style="width:80px; height:6px; display:inline-block; vertical-align:middle">
+                                    <div class="progress-fill" style="width:{{ (g.current_load / g.capacity * 100) if g.capacity > 0 else 0 }}%"></div>
+                                </div>
+                                <span class="text-xs text-muted" style="margin-left:8px">{{ ((g.current_load / g.capacity * 100) if g.capacity > 0 else 0)|round(0)|int }}%</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Guide Demand Chart
+const demandData = {{ guide_demand | tojson }};
+const demandLabels = Object.keys(demandData);
+const demandValues = Object.values(demandData);
+new Chart(document.getElementById('demandChart'), {
+    type: 'bar',
+    data: {
+        labels: demandLabels,
+        datasets: [{
+            label: 'Preference Count',
+            data: demandValues,
+            backgroundColor: demandValues.map((v, i) => {
+                const colors = ['rgba(108,99,255,0.7)', 'rgba(0,201,255,0.7)', 'rgba(67,233,123,0.7)', 'rgba(247,151,30,0.7)', 'rgba(255,101,132,0.7)'];
+                return colors[i % colors.length];
+            }),
+            borderRadius: 8,
+            borderSkipped: false,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#9090b0' }, grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true },
+            y: { ticks: { color: '#9090b0', font: { size: 11 } }, grid: { display: false } }
+        }
+    }
+});
+
+// Method Distribution
+const methodData = {{ method_dist | tojson }};
+new Chart(document.getElementById('methodChart'), {
+    type: 'pie',
+    data: {
+        labels: Object.keys(methodData).map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+        datasets: [{
+            data: Object.values(methodData),
+            backgroundColor: ['#6C63FF', '#00C9FF', '#43E97B', '#F7971E', '#FF6584'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#9090b0', font: { family: 'Inter' }, padding: 12 } } }
+    }
+});
+
+// CGPA Distribution
+const cgpaData = {{ cgpa_ranges | tojson }};
+new Chart(document.getElementById('cgpaChart'), {
+    type: 'bar',
+    data: {
+        labels: Object.keys(cgpaData),
+        datasets: [{
+            label: 'Students',
+            data: Object.values(cgpaData),
+            backgroundColor: ['#FF6584', '#F7971E', '#00C9FF', '#43E97B'],
+            borderRadius: 8, borderSkipped: false
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#9090b0' }, grid: { color: 'rgba(255,255,255,0.03)' } },
+            y: { ticks: { color: '#9090b0' }, grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true }
+        }
+    }
+});
+
+// Guide Utilization Radar
+const guideNames = {{ guides|map(attribute='user')|map(attribute='name')|list|tojson }};
+const guideLoads = {{ guides|map(attribute='current_load')|list|tojson }};
+const guideCaps = {{ guides|map(attribute='capacity')|list|tojson }};
+new Chart(document.getElementById('utilizationChart'), {
+    type: 'radar',
+    data: {
+        labels: guideNames,
+        datasets: [
+            { label: 'Load', data: guideLoads, backgroundColor: 'rgba(108,99,255,0.2)', borderColor: '#6C63FF', pointBackgroundColor: '#6C63FF' },
+            { label: 'Capacity', data: guideCaps, backgroundColor: 'rgba(0,201,255,0.1)', borderColor: '#00C9FF', pointBackgroundColor: '#00C9FF' }
+        ]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { r: { ticks: { color: '#9090b0' }, grid: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#9090b0', font: { size: 11 } } } },
+        plugins: { legend: { labels: { color: '#9090b0' } } }
+    }
+});
+</script>
+{% endblock %}

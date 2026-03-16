@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Register — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card" style="max-width:520px">
+        <div class="auth-header">
+            <div class="auth-logo">🎓</div>
+            <h1 class="auth-title">Create Account</h1>
+            <p class="auth-subtitle">Join the Guide Selection System</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('register') }}" id="registerForm" enctype="multipart/form-data">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="name" class="form-input" placeholder="Enter your name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" placeholder="your@email.com" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-input" placeholder="Min 6 characters" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select name="role" class="form-select" id="roleSelect" required onchange="toggleRoleFields()">
+                        <option value="student">Student</option>
+                        <option value="guide">Faculty / Guide</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Department</label>
+                <select name="department" class="form-select">
+                    <option>Computer Science</option>
+                    <option>Electronics</option>
+                    <option>Mechanical</option>
+                    <option>Civil</option>
+                    <option>Electrical</option>
+                    <option>Information Technology</option>
+                </select>
+            </div>
+
+            <!-- Student-specific fields -->
+            <div id="studentFields">
+                <div class="form-group">
+                    <label class="form-label">CGPA</label>
+                    <input type="number" name="cgpa" class="form-input" placeholder="e.g. 8.5" step="0.01" min="0" max="10">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Upload SOP (PDF)</label>
+                    <input type="file" name="sop_file" class="form-input" accept=".pdf" style="padding: 10px;">
+                    <p class="text-xs text-muted mt-4">Used to generate AI-priority match scores.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Areas of Interest</label>
+                    <div class="interest-tags">
+                        {% for area in ['Machine Learning', 'Web Development', 'Cybersecurity', 'Data Science', 'IoT', 'Cloud Computing', 'Blockchain', 'Computer Vision', 'NLP', 'Robotics', 'Networks', 'Database Systems'] %}
+                        <label class="interest-tag" onclick="this.classList.toggle('selected')">
+                            <input type="checkbox" name="interests" value="{{ area }}">
+                            {{ area }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guide-specific fields -->
+            <div id="guideFields" style="display:none">
+                <div class="form-group">
+                    <label class="form-label">Student Capacity</label>
+                    <input type="number" name="capacity" class="form-input" placeholder="Max students" value="5" min="1" max="20">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Research Areas</label>
+                    <div class="interest-tags">
+                        {% for area in ['Machine Learning', 'Web Development', 'Cybersecurity', 'Data Science', 'IoT', 'Cloud Computing', 'Blockchain', 'Computer Vision', 'NLP', 'Robotics', 'Networks', 'Database Systems'] %}
+                        <label class="interest-tag" onclick="this.classList.toggle('selected')">
+                            <input type="checkbox" name="research_areas" value="{{ area }}">
+                            {{ area }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg w-full mt-16" style="justify-content:center">
+                Create Account →
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleRoleFields() {
+    const role = document.getElementById('roleSelect').value;
+    document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
+    document.getElementById('guideFields').style.display = role === 'guide' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

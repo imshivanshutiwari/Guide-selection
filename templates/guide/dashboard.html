@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Guide Dashboard — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Navigation</div>
+            <a href="{{ url_for('guide_dashboard') }}" class="nav-item active">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('guide_profile') }}" class="nav-item">
+                <span class="nav-icon">👤</span> My Profile
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">{{ current_user.name[0] }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">Faculty</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Guide Dashboard</h1>
+            <p class="page-subtitle">Manage your students and review applicants</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card purple">
+                <div class="stat-icon purple">📋</div>
+                <div>
+                    <div class="stat-value">{{ applicants|length }}</div>
+                    <div class="stat-label">Total Applicants</div>
+                </div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-icon green">✓</div>
+                <div>
+                    <div class="stat-value">{{ guide.current_load }}</div>
+                    <div class="stat-label">Allocated Students</div>
+                </div>
+            </div>
+            <div class="stat-card cyan">
+                <div class="stat-icon cyan">🪑</div>
+                <div>
+                    <div class="stat-value">{{ guide.available_slots }}</div>
+                    <div class="stat-label">Available Slots</div>
+                </div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-icon orange">📊</div>
+                <div>
+                    <div class="stat-value">{{ guide.capacity }}</div>
+                    <div class="stat-label">Total Capacity</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Capacity Progress -->
+        <div class="card mb-24">
+            <div class="card-header">
+                <h2 class="card-title">Capacity Usage</h2>
+                <span class="text-sm text-muted">{{ guide.current_load }}/{{ guide.capacity }} students</span>
+            </div>
+            <div class="progress-bar" style="height:12px">
+                <div class="progress-fill {% if guide.is_full %}pink{% elif guide.current_load >= guide.capacity * 0.7 %}orange{% else %}green{% endif %}"
+                     style="width:{{ (guide.current_load / guide.capacity * 100) if guide.capacity > 0 else 0 }}%"></div>
+            </div>
+            <div class="flex justify-between mt-8">
+                <span class="text-xs text-muted">{{ ((guide.current_load / guide.capacity * 100) if guide.capacity > 0 else 0)|round(0)|int }}% filled</span>
+                {% if guide.is_full %}
+                <span class="badge badge-danger">No Slots Available</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Applicants -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📋 Applicants</h2>
+                        <p class="card-subtitle">Students who listed you as a preference</p>
+                    </div>
+                </div>
+                {% if applicants %}
+                <div class="applicant-list">
+                    {% for app in applicants %}
+                    <div class="applicant-card">
+                        <div class="user-avatar" style="background:{{ app.student.user.avatar_color }}; width:40px; height:40px; font-size:14px">
+                            {{ app.student.user.name[0] }}
+                        </div>
+                        <div class="applicant-info">
+                            <div class="applicant-name">{{ app.student.user.name }}</div>
+                            <div class="applicant-meta">
+                                <span>CGPA: <strong>{{ app.student.cgpa }}</strong></span>
+                                <span>Choice #{{ app.rank }}</span>
+                                <span>Score: <strong>{{ app.score }}</strong></span>
+                                {% if app.student.sop_score > 0 %}
+                                <span>NLP Match: <strong>+{{ app.student.sop_score }}</strong></span>
+                                {% endif %}
+                                {% if app.student.sop_url %}
+                                <span><a href="{{ url_for('static', filename=app.student.sop_url) }}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline; font-weight: 500;">View SOP (PDF)</a></span>
+                                {% endif %}
+                            </div>
+                            <div class="flex gap-8 mt-8" style="flex-wrap:wrap">
+                                {% for interest in app.student.area_of_interest[:3] %}
+                                <span class="tag">{{ interest }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="applicant-actions">
+                            {% if app.allocation %}
+                            <span class="badge badge-{% if app.allocation.status == 'confirmed' %}success{% elif app.allocation.status == 'rejected' %}danger{% elif app.allocation.status == 'waitlisted' %}warning{% else %}info{% endif %}">
+                                {{ app.allocation.status | capitalize }}
+                            </span>
+                            {% endif %}
+                            {% if app.allocation and app.allocation.status == 'allocated' %}
+                            <form method="POST" action="{{ url_for('guide_respond') }}" style="display:inline">
+                                <input type="hidden" name="student_id" value="{{ app.student.id }}">
+                                <input type="hidden" name="action" value="accept">
+                                <button type="submit" class="btn btn-success btn-sm">✓</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('guide_respond') }}" style="display:inline">
+                                <input type="hidden" name="student_id" value="{{ app.student.id }}">
+                                <input type="hidden" name="action" value="reject">
+                                <button type="submit" class="btn btn-danger btn-sm">✗</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('guide_respond') }}" style="display:inline">
+                                <input type="hidden" name="student_id" value="{{ app.student.id }}">
+                                <input type="hidden" name="action" value="waitlist">
+                                <button type="submit" class="btn btn-warning btn-sm">⏸</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <p class="empty-title">No Applicants Yet</p>
+                    <p class="empty-text">Students haven't listed you as a preference yet. Make sure your profile and research areas are up to date.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Notifications -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔔 Notifications</h2>
+                </div>
+                {% if notifications %}
+                <div class="notification-list">
+                    {% for notif in notifications %}
+                    <div class="notification-item {% if not notif.read %}unread{% endif %}">
+                        <div class="notif-icon {{ notif.type }}">
+                            {% if notif.type == 'success' %}✓{% elif notif.type == 'error' %}✗{% elif notif.type == 'warning' %}⚠{% else %}ℹ{% endif %}
+                        </div>
+                        <div class="notif-content">
+                            <div class="notif-title">{{ notif.title }}</div>
+                            <div class="notif-message">{{ notif.message }}</div>
+                        </div>
+                        <span class="notif-time">{{ notif.time_ago() }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding:30px">
+                    <div class="empty-icon">🔕</div>
+                    <p class="text-sm text-muted">No notifications</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Research Areas -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <h2 class="card-title">🔬 Your Research Areas</h2>
+                <a href="{{ url_for('guide_profile') }}" class="btn btn-ghost btn-sm">Edit Profile</a>
+            </div>
+            <div class="flex gap-8" style="flex-wrap:wrap">
+                {% for area in guide.research_areas %}
+                <span class="badge badge-primary" style="font-size:14px; padding:8px 16px">{{ area }}</span>
+                {% endfor %}
+                {% if not guide.research_areas %}
+                <p class="text-sm text-muted">No research areas set. <a href="{{ url_for('guide_profile') }}">Update your profile</a>.</p>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

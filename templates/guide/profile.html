@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Navigation</div>
+            <a href="{{ url_for('guide_dashboard') }}" class="nav-item">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('guide_profile') }}" class="nav-item active">
+                <span class="nav-icon">👤</span> My Profile
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">{{ current_user.name[0] }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">Faculty</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Edit Profile</h1>
+            <p class="page-subtitle">Update your faculty information and research areas</p>
+        </div>
+
+        <div class="card">
+            <form method="POST" action="{{ url_for('guide_profile') }}">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Designation</label>
+                        <select name="designation" class="form-select">
+                            {% for d in ['Assistant Professor', 'Associate Professor', 'Professor', 'HOD', 'Dean'] %}
+                            <option {% if guide.designation == d %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Student Capacity</label>
+                        <input type="number" name="capacity" class="form-input" value="{{ guide.capacity }}" min="1" max="20">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Bio / Description</label>
+                    <textarea name="bio" class="form-textarea" placeholder="Tell students about your research focus, expertise, and expectations...">{{ guide.bio }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Research Areas (comma-separated)</label>
+                    <input type="text" name="research_areas_text" class="form-input"
+                           value="{{ ', '.join(guide.research_areas) }}"
+                           placeholder="e.g., Machine Learning, Computer Vision, NLP">
+                </div>
+
+                <div class="flex gap-12 mt-24">
+                    <button type="submit" class="btn btn-primary btn-lg">💾 Save Profile</button>
+                    <a href="{{ url_for('guide_dashboard') }}" class="btn btn-ghost btn-lg">Cancel</a>
+                </div>
+            </form>
+        </div>
+        <div class="card mt-24">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">Google Scholar Integration</h2>
+                    <p class="card-subtitle">Automatically fetch your latest publications using your profile name.</p>
+                </div>
+            </div>
+            <form method="POST" action="{{ url_for('fetch_scholar') }}">
+                <button type="submit" class="btn btn-ghost" style="border: 1px solid var(--border)">Fetch Publications</button>
+            </form>
+            {% if guide.scholar_id %}
+            <div class="mt-16 text-sm text-muted">
+                <p>Linked Scholar ID: <strong>{{ guide.scholar_id }}</strong></p>
+                {% if guide.publications %}
+                <ul class="mt-8" style="list-style-type: disc; padding-left: 1.5rem; color: var(--text-primary)">
+                    {% for pub in guide.publications %}
+                    <li>{{ pub }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}

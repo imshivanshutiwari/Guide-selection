@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Login — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">🎓</div>
+            <h1 class="auth-title">Welcome Back</h1>
+            <p class="auth-subtitle">Sign in to the Guide Selection System</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="email" class="form-input" placeholder="your.email@college.edu" required autofocus>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-input" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-full" style="justify-content:center">
+                Sign In →
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
+        </div>
+
+        <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border-glass)">
+            <p class="text-xs text-muted text-center" style="margin-bottom:12px">Quick Login (Demo Accounts)</p>
+            <div class="flex gap-8" style="flex-wrap:wrap; justify-content:center">
+                <button onclick="quickLogin('admin@college.edu','admin123')" class="btn btn-ghost btn-sm">👑 Admin</button>
+                <button onclick="quickLogin('dr.sharma@college.edu','guide123')" class="btn btn-ghost btn-sm">👨‍🏫 Guide</button>
+                <button onclick="quickLogin('rahul@student.edu','student123')" class="btn btn-ghost btn-sm">🎓 Student</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function quickLogin(email, password) {
+    document.querySelector('input[name="email"]').value = email;
+    document.querySelector('input[name="password"]').value = password;
+    document.querySelector('form').submit();
+}
+</script>
+{% endblock %}

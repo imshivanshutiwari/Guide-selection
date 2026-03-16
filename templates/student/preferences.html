@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Submit Preferences — Guide Selection System{% endblock %}
+
+{% block content %}
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🎓</div>
+            <span class="brand-text">GuideSelect</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Navigation</div>
+            <a href="{{ url_for('student_dashboard') }}" class="nav-item">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a href="{{ url_for('student_preferences') }}" class="nav-item active">
+                <span class="nav-icon">📝</span> My Preferences
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" style="background:{{ current_user.avatar_color }}">{{ current_user.name[0] }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.name }}</div>
+                    <div class="user-role">{{ current_user.role }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="nav-item mt-8" style="color:var(--accent-secondary)">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Guide Preferences</h1>
+            <p class="page-subtitle">Select your top 3 preferred guides in order of preference</p>
+        </div>
+
+        {% if preference %}
+        <div class="card mb-24" style="border-color: rgba(67, 233, 123, 0.2)">
+            <div class="flex items-center gap-12">
+                <span class="badge badge-success">✓ Submitted</span>
+                <span class="text-sm text-muted">Last updated: {{ preference.submitted_at.strftime('%b %d, %Y %H:%M') }}</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('student_preferences') }}">
+            <div class="card mb-24">
+                <div class="card-header">
+                    <h2 class="card-title">Your Choices</h2>
+                </div>
+                <div class="pref-selector">
+                    <div class="pref-slot">
+                        <div class="pref-rank r1">1</div>
+                        <div style="flex:1">
+                            <label class="form-label" style="margin-bottom:6px">1st Preference (Most Preferred)</label>
+                            <select name="choice_1" class="form-select" required>
+                                <option value="">— Select Guide —</option>
+                                {% for guide in guides %}
+                                <option value="{{ guide.id }}" {% if preference and preference.choice_1_id == guide.id %}selected{% endif %}>
+                                    {{ guide.user.name }} — {{ ', '.join(guide.research_areas[:2]) }}
+                                    {% if guide.is_full %}(FULL){% else %}({{ guide.available_slots }} slots){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pref-slot">
+                        <div class="pref-rank r2">2</div>
+                        <div style="flex:1">
+                            <label class="form-label" style="margin-bottom:6px">2nd Preference</label>
+                            <select name="choice_2" class="form-select" required>
+                                <option value="">— Select Guide —</option>
+                                {% for guide in guides %}
+                                <option value="{{ guide.id }}" {% if preference and preference.choice_2_id == guide.id %}selected{% endif %}>
+                                    {{ guide.user.name }} — {{ ', '.join(guide.research_areas[:2]) }}
+                                    {% if guide.is_full %}(FULL){% else %}({{ guide.available_slots }} slots){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pref-slot">
+                        <div class="pref-rank r3">3</div>
+                        <div style="flex:1">
+                            <label class="form-label" style="margin-bottom:6px">3rd Preference</label>
+                            <select name="choice_3" class="form-select" required>
+                                <option value="">— Select Guide —</option>
+                                {% for guide in guides %}
+                                <option value="{{ guide.id }}" {% if preference and preference.choice_3_id == guide.id %}selected{% endif %}>
+                                    {{ guide.user.name }} — {{ ', '.join(guide.research_areas[:2]) }}
+                                    {% if guide.is_full %}(FULL){% else %}({{ guide.available_slots }} slots){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-24">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        💾 {{ 'Update' if preference else 'Submit' }} Preferences
+                    </button>
+                    <a href="{{ url_for('student_dashboard') }}" class="btn btn-ghost btn-lg" style="margin-left:12px">Cancel</a>
+                </div>
+            </div>
+        </form>
+
+        <!-- Guide Directory -->
+        <div class="card mt-24">
+            <div class="card-header">
+                <h2 class="card-title">📖 Guide Directory</h2>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Guide</th>
+                            <th>Designation</th>
+                            <th>Research Areas</th>
+                            <th>Availability</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for guide in guides %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-12">
+                                    <div class="user-avatar" style="background:{{ guide.user.avatar_color }}; width:32px; height:32px; font-size:12px">
+                                        {{ guide.user.name[0] }}
+                                    </div>
+                                    <strong>{{ guide.user.name }}</strong>
+                                </div>
+                            </td>
+                            <td class="text-muted">{{ guide.designation }}</td>
+                            <td>
+                                <div class="flex gap-8" style="flex-wrap:wrap">
+                                    {% for area in guide.research_areas %}
+                                    <span class="tag">{{ area }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>{{ guide.available_slots }}/{{ guide.capacity }}</td>
+                            <td>
+                                {% if guide.is_full %}
+                                <span class="badge badge-danger">Full</span>
+                                {% elif guide.available_slots <= 1 %}
+                                <span class="badge badge-warning">Almost Full</span>
+                                {% else %}
+                                <span class="badge badge-success">Available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
