@@ -208,15 +208,20 @@ def _gale_shapley(unmatched_students, all_guides, db):
         for student in unmatched_students:
             guide_rankings[guide.id][student.id] = guide.applicant_score(student)
 
-    # Gale-Shapley algorithm
-    # Each student proposes to guides in order; guides tentatively accept the best
+    # Gale-Shapley algorithm (Many-to-One matching with guide capacity)
+    # Each student proposes to guides in order; guides tentatively accept up to their capacity
     free_students = list(student_prefs.keys())
     proposal_index = {sid: 0 for sid in free_students}  # next guide to propose to
-    current_match = {}  # guide_id -> student_id (tentative)
+    current_match = {g_id: [] for g_id in available_guides.keys()}  # guide_id -> [student_id, ...] (tentative)
     student_match = {}  # student_id -> guide_id (final)
 
-    max_iterations = len(free_students) * 10  # safety limit
+    # Calculate total remaining capacity for loop condition safeguard
+    total_capacity = sum(guide.available_slots for guide in available_guides.values())
+    max_iterations = len(free_students) * total_capacity * 10  # safety limit
     iteration = 0
+
+    import logging
+    logger = logging.getLogger(__name__)
 
     while free_students and iteration < max_iterations:
         iteration += 1
@@ -236,29 +241,37 @@ def _gale_shapley(unmatched_students, all_guides, db):
             continue
 
         guide = available_guides[guide_id]
+        capacity = guide.available_slots
+        current_guide_students = current_match[guide_id]
 
-        if guide_id not in current_match:
-            # Guide is free, tentatively accept
-            current_match[guide_id] = student_id
+        if len(current_guide_students) < capacity:
+            # Guide has free slots, tentatively accept
+            current_guide_students.append(student_id)
             student_match[student_id] = guide_id
             free_students.pop(0)
+            logger.info(f"Iteration {iteration}: Guide {guide_id} accepts Student {student_id} (Slots: {len(current_guide_students)}/{capacity})")
         else:
-            # Guide already matched — compare
-            current_student_id = current_match[guide_id]
-            current_score = guide_rankings.get(guide_id, {}).get(current_student_id, 0)
-            new_score = guide_rankings.get(guide_id, {}).get(student_id, 0)
+            # Guide is full — compare with worst matched student
+            # Find the worst student currently matched to this guide
+            worst_student_id = min(current_guide_students, key=lambda sid: guide_rankings.get(guide_id, {}).get(sid, -1))
+            worst_score = guide_rankings.get(guide_id, {}).get(worst_student_id, -1)
+            new_score = guide_rankings.get(guide_id, {}).get(student_id, -1)
 
-            if new_score > current_score:
-                # Replace: new student is better
-                current_match[guide_id] = student_id
+            if new_score > worst_score:
+                # Replace: new student is better than the worst current match
+                current_guide_students.remove(worst_student_id)
+                current_guide_students.append(student_id)
+
                 student_match[student_id] = guide_id
-                # Old student becomes free again
-                if current_student_id in student_match:
-                    del student_match[current_student_id]
+                if worst_student_id in student_match:
+                    del student_match[worst_student_id]
+
                 free_students.pop(0)
-                free_students.append(current_student_id)
+                free_students.append(worst_student_id)
+                logger.info(f"Iteration {iteration}: Guide {guide_id} replaces Student {worst_student_id} with Student {student_id}")
             else:
                 # Rejected, student stays free and tries next preference
+                logger.info(f"Iteration {iteration}: Guide {guide_id} rejects Student {student_id}")
                 pass  # Will loop again with next preference
 
     return student_match

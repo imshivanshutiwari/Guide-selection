@@ -52,10 +52,15 @@ class Student(db.Model):
 
     @property
     def area_of_interest(self):
-        return json.loads(self._area_of_interest) if self._area_of_interest else []
+        """Returns the list of student interests safely."""
+        try:
+            return json.loads(self._area_of_interest) if self._area_of_interest else []
+        except json.JSONDecodeError:
+            return []
 
     @area_of_interest.setter
     def area_of_interest(self, value):
+        """Sets the list of student interests."""
         self._area_of_interest = json.dumps(value)
 
     @property
@@ -72,7 +77,7 @@ class Student(db.Model):
             if submitted.tzinfo is not None:
                 submitted = submitted.replace(tzinfo=None)
             days_early = (deadline - submitted).days
-            score += min(days_early * 0.5, 10)  # max 10 points
+            score += max(0, min(days_early * 0.5, 10))  # max 10 points, min 0
         return round(score, 2)
 
     def __repr__(self):
@@ -98,18 +103,25 @@ class Guide(db.Model):
 
     @property
     def research_areas(self):
-        return json.loads(self._research_areas) if self._research_areas else []
+        """Returns the list of guide research areas safely."""
+        try:
+            return json.loads(self._research_areas) if self._research_areas else []
+        except json.JSONDecodeError:
+            return []
 
     @research_areas.setter
     def research_areas(self, value):
+        """Sets the list of guide research areas."""
         self._research_areas = json.dumps(value)
 
     @property
     def available_slots(self):
+        """Returns the number of available slots for the guide."""
         return max(0, self.capacity - self.current_load)
 
     @property
     def is_full(self):
+        """Checks if the guide has reached their capacity."""
         return self.current_load >= self.capacity
 
     def applicant_score(self, student):

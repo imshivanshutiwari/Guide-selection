@@ -16,14 +16,15 @@ from werkzeug.utils import secure_filename
 import PyPDF2
 from scholarly import scholarly
 from flask_mail import Mail, Message
+from sqlalchemy.orm import joinedload
 
 from models import db, User, Student, Guide, Preference, Allocation, Notification, AuditLog
 from matching import run_matching
 
 # ─── App Configuration ──────────────────────────────────────────
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'guide-selection-secret-key-2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///guide_selection.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'guide-selection-secret-key-2026')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///guide_selection.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'sops')
@@ -50,7 +51,8 @@ def load_user(user_id):
 def send_local_email(to, subject, body):
     """Simulate sending an email by logging to a local file."""
     os.makedirs('emails', exist_ok=True)
-    filename = f"emails/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{to.replace('@', '_')}.txt"
+    safe_to = secure_filename(to.replace('@', '_'))
+    filename = f"emails/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{safe_to}.txt"
     try:
         with open(filename, 'w') as f:
             f.write(f"To: {to}\nSubject: {subject}\n\n{body}")
@@ -146,7 +148,10 @@ def register():
         db.session.flush()
 
         if role == 'student':
-            cgpa = float(request.form.get('cgpa', 0))
+            try:
+                cgpa = float(request.form.get('cgpa', 0))
+            except ValueError:
+                cgpa = 0.0
             interests = request.form.getlist('interests')
             
             # Handle SOP PDF Upload
@@ -175,7 +180,10 @@ def register():
             db.session.add(student)
         elif role == 'guide':
             areas = request.form.getlist('research_areas')
-            capacity = int(request.form.get('capacity', 5))
+            try:
+                capacity = int(request.form.get('capacity', 5))
+            except ValueError:
+                capacity = 5
             guide = Guide(user_id=user.id, research_areas=areas, capacity=capacity)
             db.session.add(guide)
 
@@ -330,7 +338,10 @@ def guide_profile():
 
     if request.method == 'POST':
         guide.bio = request.form.get('bio', '')
-        guide.capacity = int(request.form.get('capacity', 5))
+        try:
+            guide.capacity = int(request.form.get('capacity', 5))
+        except ValueError:
+            guide.capacity = 5
         guide.designation = request.form.get('designation', 'Assistant Professor')
         areas = request.form.get('research_areas_text', '')
         guide.research_areas = [a.strip() for a in areas.split(',') if a.strip()]
@@ -374,7 +385,11 @@ def fetch_scholar():
 @role_required('guide')
 def guide_respond():
     guide = current_user.guide_profile
-    student_id = int(request.form.get('student_id'))
+    try:
+        student_id = int(request.form.get('student_id'))
+    except (TypeError, ValueError):
+        flash('Invalid student ID.', 'error')
+        return redirect(url_for('guide_dashboard'))
     action = request.form.get('action')  # accept, reject, waitlist
 
     alloc = Allocation.query.filter_by(student_id=student_id, guide_id=guide.id).first()
@@ -414,8 +429,8 @@ def guide_respond():
 @login_required
 @role_required('admin')
 def admin_dashboard():
-    students = Student.query.all()
-    guides = Guide.query.all()
+    students = Student.query.options(joinedload(Student.user)).all()
+    guides = Guide.query.options(joinedload(Guide.user)).all()
     allocations = Allocation.query.all()
     unmatched = [s for s in students if not Allocation.query.filter_by(student_id=s.id).first()]
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).limit(10).all()
@@ -479,8 +494,12 @@ def admin_run_matching():
 @login_required
 @role_required('admin')
 def admin_override():
-    student_id = int(request.form.get('student_id'))
-    guide_id = int(request.form.get('guide_id'))
+    try:
+        student_id = int(request.form.get('student_id'))
+        guide_id = int(request.form.get('guide_id'))
+    except (TypeError, ValueError):
+        flash('Invalid student or guide ID.', 'error')
+        return redirect(url_for('admin_dashboard'))
 
     # Remove existing allocation if any
     existing = Allocation.query.filter_by(student_id=student_id).first()
@@ -520,7 +539,7 @@ def admin_override():
 @login_required
 @role_required('admin')
 def admin_analytics():
-    guides = Guide.query.all()
+    guides = Guide.query.options(joinedload(Guide.user)).all()
     allocations = Allocation.query.all()
     students = Student.query.all()
 
@@ -588,9 +607,14 @@ def admin_export():
             cell.border = thin_border
 
         allocations = Allocation.query.all()
+
+        # Pre-fetch students and guides for faster lookups
+        students = {s.id: s for s in Student.query.options(joinedload(Student.user)).all()}
+        guides = {g.id: g for g in Guide.query.options(joinedload(Guide.user)).all()}
+
         for row_idx, alloc in enumerate(allocations, 2):
-            student = db.session.get(Student, alloc.student_id)
-            guide = db.session.get(Guide, alloc.guide_id)
+            student = students.get(alloc.student_id)
+            guide = guides.get(alloc.guide_id)
             data = [
                 row_idx - 1,
                 student.user.name if student else 'N/A',
